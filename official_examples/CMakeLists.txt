@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.17.3)
 project(muxing_demo)
 
 # 设置ffmpeg 依赖库以及头文件所在的目录，并存入指定变量
