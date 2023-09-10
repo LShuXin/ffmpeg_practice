@@ -35,24 +35,24 @@
 #include <math.h>
 
 #include <libavutil/avassert.h>
-#include <libavutil/channel_layout.h>
-#include <libavutil/opt.h>
-#include <libavutil/mathematics.h>
-#include <libavutil/timestamp.h>
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
+#include <libavutil/channel_layout.h>            /* 包含了有关音频通道布局的信息 */
+#include <libavutil/opt.h>                       /* 用于处理 FFmpeg 中的选项，这些选项用于配置不同编码器和过滤器的参数 */
+#include <libavutil/mathematics.h>               /* 包含了一些数学函数和常量，用于进行时间码、时间戳等计算 */
+#include <libavutil/timestamp.h>                 /* 提供了一些处理时间戳的函数，这在音视频处理中非常重要，用于确定帧的时间顺序和持续时间等信息 */
+#include <libavcodec/avcodec.h>                  /* 包含了音视频编解码器的定义和函数，允许你进行音视频编码和解码操作 */
+#include <libavformat/avformat.h>                /* 包含了多种媒体格式的定义和函数，用于音视频文件的读取和写入 */
+#include <libswscale/swscale.h>                  /* 提供了图像缩放和转换的功能，用于处理视频帧的大小和格式 */
+#include <libswresample/swresample.h>            /* 用于音频重采样的功能，允许你改变音频的采样率和通道数 */
 
-#define STREAM_DURATION   10.0  /* 视频流的持续时间（单位：秒） */
-#define STREAM_FRAME_RATE 25 /* 视频流的帧率（每秒帧数）*/
-#define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* 默认视频像素格式 */
+#define STREAM_DURATION   10.0                   /* 视频流的持续时间（单位：秒） */
+#define STREAM_FRAME_RATE 25                     /* 视频流的帧率（每秒帧数）*/
+#define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P     /* 默认视频像素格式 */
+#define SCALE_FLAGS SWS_BICUBIC                  /* 视频像素格式转换的标志，*/
 
-#define SCALE_FLAGS SWS_BICUBIC /* 视频像素格式转换的标志，*/
 
 /**
  * @brief 这是一个封装输出 AVStream 的结构体，用于存储编码器相关的信息，以及当前帧的时间戳
- * 这个自定义的结构体用于管理输出流的各种信息和相关的数据结构，以便在音视频处理过程中能够有效的进行数据封装、编码和格式转换等操作
+ * 可管理输出流的各种信息和相关的数据结构，以便在音视频处理过程中能够有效的进行数据封装、编码和格式转换等操作
  */
 typedef struct OutputStream {
     // 指向音视频输出流的指针，表示输出流的相关信息，比如编码参数，时间基准等
@@ -76,9 +76,9 @@ typedef struct OutputStream {
     // 用于控制时间戳的参数，通常用于计算下一个帧的时间戳
     float t, tincr, tincr2;
 
-    // 指向 SwsContext 结构体的指针，表示用于视频帧转换的上下文
+    // 指向 SwsContext 结构体的指针，表示用于"视频帧转换"的上下文
     struct SwsContext *sws_ctx;
-    // 指向 SwsContext 结构体的指针，表示用于音频帧重采样的上下文
+    // 指向 SwsContext 结构体的指针，表示用于"音频帧重采样"的上下文
     struct SwrContext *swr_ctx;
 } OutputStream;
 
@@ -88,8 +88,6 @@ typedef struct OutputStream {
 
 /**
  * @brief 这个函数用于输出 AVPacket 的信息，包括 pts（显示时间戳）、dts（解码时间戳）、时长
- * 
- * 
  * @param fmt_ctx 指向音视频格式上下文的常量指针，包含了音视频文件的相关信息，如编解码器、流信息
  * @param pkt 指向音视频包的常量指针，包含了音视频数据以及时间戳等信息。
  */
@@ -109,7 +107,7 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
     // 3. 媒体编辑和处理： 在编辑和处理多媒体数据时，时间基准用于精确控制和调整媒体的时间。
     // 4. 时间码生成： 在视频制作中，时间基准常用于生成时间码，以便在后期制作中进行精确的编辑和同步。
     //
-    // 总之，时间基准时多媒体处理中的重要概念，用于管理和表示时间，以确保多媒体数据在不同环境和应用中能够正确的处理和表示。不同的多媒体框架和标准
+    // 总之，时间基准是多媒体处理中的重要概念，用于管理和表示时间，以确保多媒体数据在不同环境和应用中能够正确的处理和表示。不同的多媒体框架和标准
     // 可能使用不同的时间基准，因此在处理多媒体数据时需要注意时间基准的匹配和转换。
     AVRational *time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
 
@@ -141,8 +139,11 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
  * @param pkt 指向输出数据包的指针，用于存储编码后的数据包
  * @return int 
  */
-static int write_frame(AVFormatContext *fmt_ctx, AVCodecContext *c,
-                       AVStream *st, AVFrame *frame, AVPacket *pkt)
+static int write_frame(AVFormatContext *fmt_ctx,
+                       AVCodecContext *c,
+                       AVStream *st,
+                       AVFrame *frame,
+                       AVPacket *pkt)
 {
     int ret;
 
@@ -175,7 +176,6 @@ static int write_frame(AVFormatContext *fmt_ctx, AVCodecContext *c,
         // 设置输出数据包的流索引，以指示数据包属于哪个输出流
         pkt->stream_index = st->index;
 
-        /* Write the compressed frame to the media file. */
         log_packet(fmt_ctx, pkt);
         // 这一行代码将编辑后的的数据包写入到媒体文件当中。fmt_ctx 是表示媒体文件格式的上下文，pkt 包含了编码后的数据。函数会将
         // 数据包写入媒体文件，并自动处理时间戳和媒体文件的格式
@@ -192,17 +192,21 @@ static int write_frame(AVFormatContext *fmt_ctx, AVCodecContext *c,
     return ret == AVERROR_EOF ? 1 : 0;
 }
 
+
+
+
+
 /**
  * @brief 用于向输出文件中添加一个输出流，并初始化相关的编码器参数
  * 这个函数的主要目的是为输出流配置编码器参数，并将其添加到输出媒体文件的格式上下文中，以便后续可以使用这些配置来编码和写入音视频
  * 数据。函数根据流的类型（音频或者视频）和选择的编码器类型来设置参数，以确保输出流的数据按照所需的方式编码和写入到媒体文件中。
- * 
  * @param ost 指向自定义的 OutputStream 结构体的指针用于表示输出流的相关信息，如编码器上下文，帧数据等。
  * @param oc 指向输出媒体文件的格式上下文的指针，用于表示输出文件的信息，如文件格式、流信息等。
  * @param codec 指向编码器指针的指针，用于存储找到的编码器
- * @param codec_id 一个枚举值，表示要使用的编码器的表示符
+ * @param codec_id 一个枚举值，表示要使用的编码器的标识符
  */
-static void add_stream(OutputStream *ost, AVFormatContext *oc,
+static void add_stream(OutputStream *ost,
+                       AVFormatContext *oc,
                        const AVCodec **codec,
                        enum AVCodecID codec_id)
 {
@@ -218,14 +222,14 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
         exit(1);
     }
 
-    // 分配一个用于临时存储数据包的内存，并将其复制给ost->tmp_pkt，这个数据包用于暂时存储编码后的数据
+    // 分配一个用于临时存储数据包的内存，并将其复制给 ost->tmp_pkt，这个数据包用于暂时存储编码后的数据
     ost->tmp_pkt = av_packet_alloc();
     if (!ost->tmp_pkt) {
         fprintf(stderr, "Could not allocate AVPacket\n");
         exit(1);
     }
 
-    // 创建一个新的输出流并将其赋值给ost->st,这个新的输出流会添加到输出文件的格式上下文 oc 中。如果创建失败，会打印错误消息
+    // 创建一个新的输出流并将其赋值给 ost->st, 这个新的输出流会添加到输出文件的格式上下文 oc 中。如果创建失败，会打印错误消息
     // 并终止程序
     ost->st = avformat_new_stream(oc, NULL);
     if (!ost->st) {
@@ -234,7 +238,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
     }
 
     // 设置新创建的输出流的标识符，通常用于标识不同的流
-    ost->st->id = oc->nb_streams-1;
+    ost->st->id = oc->nb_streams - 1;
     // 为找到的编码器分配一个编码器上下文，并将其赋值给 ost->enc。编码器上下文包含了编码器的配置参数。
     c = avcodec_alloc_context3(*codec);
     if (!c) {
@@ -249,31 +253,41 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
     // 这些参数会根据具体的编码器类型和需求设置
     switch ((*codec)->type) {
         case AVMEDIA_TYPE_AUDIO:
-            c->sample_fmt  = (*codec)->sample_fmts ?
-                             (*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+        {
+            c->sample_fmt  = (*codec)->sample_fmts ? (*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
             c->bit_rate    = 64000;
             c->sample_rate = 44100;
-            if ((*codec)->supported_samplerates) {
+            if ((*codec)->supported_samplerates)
+            {
                 c->sample_rate = (*codec)->supported_samplerates[0];
-                for (i = 0; (*codec)->supported_samplerates[i]; i++) {
+                for (i = 0; (*codec)->supported_samplerates[i]; i++)
+                {
                     if ((*codec)->supported_samplerates[i] == 44100)
+                    {
                         c->sample_rate = 44100;
+                    }
+
                 }
             }
-            c->channels        = av_get_channel_layout_nb_channels(c->channel_layout);
+            c->channels       = av_get_channel_layout_nb_channels(c->channel_layout);
             c->channel_layout = AV_CH_LAYOUT_STEREO;
-            if ((*codec)->channel_layouts) {
+            if ((*codec)->channel_layouts)
+            {
                 c->channel_layout = (*codec)->channel_layouts[0];
-                for (i = 0; (*codec)->channel_layouts[i]; i++) {
+                for (i = 0; (*codec)->channel_layouts[i]; i++)
+                {
                     if ((*codec)->channel_layouts[i] == AV_CH_LAYOUT_STEREO)
+                    {
                         c->channel_layout = AV_CH_LAYOUT_STEREO;
+                    }
                 }
             }
             c->channels        = av_get_channel_layout_nb_channels(c->channel_layout);
             ost->st->time_base = (AVRational){ 1, c->sample_rate };
             break;
-
+        }
         case AVMEDIA_TYPE_VIDEO:
+        {
             c->codec_id = codec_id;
 
             c->bit_rate = 400000;
@@ -298,10 +312,9 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
                  * This does not happen with normal video, it just happens here as
                  * the motion of the chroma plane does not match the luma plane. */
                 c->mb_decision = 2;
-
             }
             break;
-
+        }
         default:
             break;
     }
@@ -330,7 +343,8 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
  * */
 static AVFrame *alloc_audio_frame(enum AVSampleFormat sample_fmt,
                                   uint64_t channel_layout,
-                                  int sample_rate, int nb_samples)
+                                  int sample_rate,
+                                  int nb_samples)
 {
     // 分配一个新的音频帧，音频帧用于存储音频数据
     AVFrame *frame = av_frame_alloc();
@@ -378,8 +392,10 @@ static AVFrame *alloc_audio_frame(enum AVSampleFormat sample_fmt,
  * @param ost 表示输出流，包括音频编码器的相关设置和参数
  * @param opt_arg 用于配置音频编码器的选项参数的字典
  */
-static void open_audio(AVFormatContext *oc, const AVCodec *codec,
-                       OutputStream *ost, AVDictionary *opt_arg)
+static void open_audio(AVFormatContext *oc,
+                       const AVCodec *codec,
+                       OutputStream *ost,
+                       AVDictionary *opt_arg)
 {
     // 声明一个指向音频编码上下文结构体的指针
     AVCodecContext *c;
@@ -639,12 +655,14 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
  * @param ost 表示输出流，包括视频编码器的相关设置和参数，例如视频编码器上下文、临时帧
  * @param opt_arg 表示用于配置视频编码器的选项参数的字典
  */
-static void open_video(AVFormatContext *oc, const AVCodec *codec,
-                       OutputStream *ost, AVDictionary *opt_arg)
+static void open_video(AVFormatContext *oc,
+                       const AVCodec *codec,
+                       OutputStream *ost,
+                       AVDictionary *opt_arg)
 {
     // 存储函数返回值或者错误代码
     int ret;
-    // 将输出流中的音频编码器上下文赋值给c
+    // 将输出流中的编码器上下文赋值给c
     AVCodecContext *c = ost->enc;
     // 存储一些选项参数
     AVDictionary *opt = NULL;
@@ -776,11 +794,16 @@ static AVFrame *get_video_frame(OutputStream *ost)
         // 如果无法创建转换上下文，就在标准错误流中打印错误消息并退出程序
         if (!ost->sws_ctx)
         {
-            ost->sws_ctx = sws_getContext(c->width, c->height,
+            ost->sws_ctx = sws_getContext(c->width,
+                                          c->height,
                                           AV_PIX_FMT_YUV420P,
-                                          c->width, c->height,
+                                          c->width,
+                                          c->height,
                                           c->pix_fmt,
-                                          SCALE_FLAGS, NULL, NULL, NULL);
+                                          SCALE_FLAGS,
+                                          NULL,
+                                          NULL,
+                                          NULL);
             if (!ost->sws_ctx)
             {
                 fprintf(stderr, "Could not initialize the conversion context\n");
@@ -818,18 +841,23 @@ static AVFrame *get_video_frame(OutputStream *ost)
 }
 
 
+
+
+
 /**
  * 编码，并将视频写入视频文件
- * 
 */
 static int write_video_frame(AVFormatContext *oc, OutputStream *ost)
 {
     return write_frame(oc, ost->enc, ost->st, get_video_frame(ost), ost->tmp_pkt);
 }
 
+
+
+
+
 /**
  * @brief 关闭输出流，并释放相应的内存资源
- * 
  * @param oc 
  * @param ost 
  */
@@ -963,8 +991,11 @@ int main(int argc, char **argv)
     {
         /* select the stream to encode */
         if (encode_video &&
-            (!encode_audio || av_compare_ts(video_st.next_pts, video_st.enc->time_base,
-                                            audio_st.next_pts, audio_st.enc->time_base) <= 0)) {
+            (!encode_audio || av_compare_ts(video_st.next_pts,
+                                            video_st.enc->time_base,
+                                            audio_st.next_pts,
+                                            audio_st.enc->time_base) <= 0))
+        {
             encode_video = !write_video_frame(oc, &video_st);
         } else {
             encode_audio = !write_audio_frame(oc, &audio_st);
