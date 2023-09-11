@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.17.3)
-project(muxing_demo)
+project(official_demo)
 
 # 设置ffmpeg 依赖库以及头文件所在的目录，并存入指定变量
 set(FFMPEG_LIBS_DIR /usr/local/ffmpeg/lib)
@@ -10,7 +10,8 @@ include_directories(${FFMPEG_HEADERS_DIR})
 link_directories(${FFMPEG_LIBS_DIR})
 
 
-add_executable(${PROJECT_NAME} muxing.c)
+add_executable(muxing_demo muxing.c)
+target_link_libraries(muxing_demo avcodec avformat avutil swscale swresample)
 
-
-target_link_libraries(${PROJECT_NAME} avcodec avformat avutil swscale swresample)
+add_executable(metadata_demo metadata.c)
+target_link_libraries(metadata_demo avformat avutil)

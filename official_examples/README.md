@@ -18,3 +18,18 @@ cd build
 cmake ..
 make
 ```
+
+## 各 demo 使用说明
+make 成功，分别执行下面的命令
+
+- muxing_demo
+```
+运行此命令将生成一个 mp4 视频
+./muxing_demo mux.mp4
+```
+
+- metadata_demo
+```
+运行此命令将打印出指定视频的一些信息
+./metadata_demo mux.mp4ß
+```
